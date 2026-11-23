@@ -131,6 +131,64 @@ nav button:active:not(:disabled){opacity:.8}
 .view.active{animation:premiumPageIn .19s cubic-bezier(.22,1,.36,1) both}
 @keyframes premiumPageIn{from{opacity:.55;transform:translate3d(0,5px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
 @media(prefers-reduced-motion:reduce){.view.active{animation:none!important}nav button{transition:none!important}}
+
+/* iOS long-press: allow scrolling but never select transaction text. */
+.tx,.tx *,.recent-pay-item,.recent-pay-item *{
+  -webkit-user-select:none!important;user-select:none!important;
+  -webkit-touch-callout:none!important;
+}
+.tx{-webkit-tap-highlight-color:transparent;touch-action:pan-y;cursor:pointer}
+/* Native-feeling crossfade between views, with a small directional slide. */
+@keyframes walletOldPage{to{opacity:0;transform:translate3d(-9px,0,0)}}
+@keyframes walletNewPage{from{opacity:0;transform:translate3d(12px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+::view-transition-old(root){animation:155ms cubic-bezier(.4,0,1,1) both walletOldPage}
+::view-transition-new(root){animation:245ms cubic-bezier(.2,.8,.2,1) both walletNewPage}
+html.wallet-transitioning .view.active{animation:none!important}
+@media(prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation-duration:.01ms!important}}
+/* Stable iOS transitions: animate only the new content, never the entire viewport. */
+::view-transition-old(root),::view-transition-new(root){animation:none!important}
+.view.active{animation:stablePageFade 160ms ease-out both!important;transform:none!important}
+@keyframes stablePageFade{from{opacity:.82}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.view.active{animation:none!important}}
+
+/* Soft spring transitions: animate page content, not the entire viewport. */
+@keyframes walletSoftSpring {
+  0% {opacity:.72;transform:translate3d(0,7px,0) scale(.992)}
+  58% {opacity:1;transform:translate3d(0,-2px,0) scale(1.002)}
+  82% {opacity:1;transform:translate3d(0,1px,0) scale(1)}
+  100% {opacity:1;transform:translate3d(0,0,0) scale(1)}
+}
+.view.active{animation:walletSoftSpring 340ms cubic-bezier(.22,.75,.25,1) both!important;transform-origin:50% 12%}
+@keyframes walletNavPop{0%{transform:scale(.91)}62%{transform:scale(1.09)}100%{transform:scale(1)}}
+nav button.active .navico{animation:walletNavPop 310ms cubic-bezier(.22,.75,.25,1) both}
+nav button{transition:background-color 230ms ease,color 230ms ease!important}
+button:active:not(:disabled){opacity:.92}
+@media(prefers-reduced-motion:reduce){.view.active,nav button.active .navico{animation:none!important}}
+
+/* Direction-aware transitions: sheet rises; forward steps enter from right. */
+.view.active { animation: none !important; }
+.view.active.wallet-enter-up { animation: walletEnterUp 340ms cubic-bezier(.2,.8,.2,1) both !important; }
+.view.active.wallet-enter-left { animation: walletEnterLeft 300ms cubic-bezier(.2,.8,.2,1) both !important; }
+.view.active.wallet-enter-right { animation: walletEnterRight 290ms cubic-bezier(.2,.8,.2,1) both !important; }
+@keyframes walletEnterUp {
+  0% { opacity:.55; transform:translate3d(0,36px,0); }
+  72% { opacity:1; transform:translate3d(0,-3px,0); }
+  100% { opacity:1; transform:translate3d(0,0,0); }
+}
+@keyframes walletEnterLeft {
+  0% { opacity:.55; transform:translate3d(44px,0,0); }
+  76% { opacity:1; transform:translate3d(-3px,0,0); }
+  100% { opacity:1; transform:translate3d(0,0,0); }
+}
+@keyframes walletEnterRight {
+  0% { opacity:.55; transform:translate3d(-36px,0,0); }
+  76% { opacity:1; transform:translate3d(2px,0,0); }
+  100% { opacity:1; transform:translate3d(0,0,0); }
+}
+@media(prefers-reduced-motion:reduce) {
+ .view.active.wallet-enter-up,.view.active.wallet-enter-left,.view.active.wallet-enter-right { animation:none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -283,7 +341,40 @@ function saveSimulationMessage(){const value=document.getElementById('customSimu
 function resetSimulationMessage(){data.simulationMessage='This is a simulation. No actual money is transferred.';document.getElementById('customSimulationText').value=data.simulationMessage;persist();renderSimulationMessage();showToast('Default message restored.')}
 function money(n){return new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(n)}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.style.display='none',2600)}
-function showView(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));if(id==='settings'){document.getElementById('balanceEdit').value=Number(data.balance).toFixed(2);document.getElementById('customSimulationText').value=data.simulationMessage??'This is a simulation. No actual money is transferred.';document.getElementById('customSimulationColor').value=/^#[0-9a-fA-F]{6}$/.test(data.simulationColor||'')?data.simulationColor:'#aeb7c4';}window.scrollTo({top:0,behavior:'instant'});render()}
+let walletViewTransition=null;
+function showView(id){
+ const target=document.getElementById(id);
+ if(!target)return;
+ const current=document.querySelector('.view.active');
+ const previousId=current?.id;
+ const payFlow=['newpayment','payidentry','payidverify','payidamount','payidreview','payidreceipt'];
+ let direction='wallet-enter-up';
+ const fromIndex=payFlow.indexOf(previousId);
+ const toIndex=payFlow.indexOf(id);
+ if(fromIndex!==-1 && toIndex!==-1) direction=toIndex>fromIndex?'wallet-enter-left':'wallet-enter-right';
+ else if(id==='payidentry' && previousId==='newpayment') direction='wallet-enter-left';
+ else if(previousId==='payidentry' && id==='newpayment') direction='wallet-enter-right';
+ else if(previousId==='transactiondetail' && id!=='transactiondetail') direction='wallet-enter-right';
+ else if(id==='transactiondetail') direction='wallet-enter-left';
+ const changed=previousId!==id;
+ document.querySelectorAll('.view').forEach(v=>{
+  v.classList.remove('wallet-enter-up','wallet-enter-left','wallet-enter-right');
+  v.classList.toggle('active',v.id===id);
+ });
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id));
+ if(id==='settings'){
+  document.getElementById('balanceEdit').value=Number(data.balance).toFixed(2);
+  document.getElementById('customSimulationText').value=data.simulationMessage??'This is a simulation. No actual money is transferred.';
+  document.getElementById('customSimulationColor').value=/^#[0-9a-fA-F]{6}$/.test(data.simulationColor||'')?data.simulationColor:'#aeb7c4';
+ }
+ window.scrollTo(0,0);
+ render();
+ if(changed){
+  // Restart animation only on the newly opened content; never animate header or nav.
+  void target.offsetWidth;
+  target.classList.add(direction);
+ }
+}
 function showPayment(type){showView('payments');openPaymentForm(type)}
 function openPaymentForm(type){document.getElementById('paymentFormContainer').hidden=false;document.getElementById('paymentType').value=type;changePaymentType();document.getElementById('paymentFormContainer').scrollIntoView({behavior:'smooth',block:'nearest'})}
 function closePaymentForm(){document.getElementById('paymentFormContainer').hidden=true}
@@ -350,7 +441,20 @@ function saveTransactionEdit(e,id){
 }
 
 function duplicateTransaction(id){const tx=data.transactions.find(t=>String(t.id)===String(id));if(!tx)return;const copy={...tx,id:Date.now(),title:tx.title+' (copy)',date:new Date().toISOString()};data.transactions.unshift(copy);data.balance=Math.round((data.balance+copy.amount)*100)/100;persist();render();closeTxMenu();showToast('Transaction duplicated.')}
-function attachLongPress(){document.querySelectorAll('.tx').forEach(el=>{el.addEventListener('pointerdown',()=>{holdTriggered=false;const id=el.dataset.txId;holdTimer=setTimeout(()=>{holdTriggered=true;showTransactionMenu(id)},3000)});['pointerup','pointerleave','pointercancel'].forEach(evt=>el.addEventListener(evt,()=>clearTimeout(holdTimer)));el.addEventListener('contextmenu',e=>e.preventDefault())})}
+function attachLongPress(){document.querySelectorAll('.tx').forEach(el=>{
+ let startX=0,startY=0;
+ el.addEventListener('pointerdown',e=>{
+  if(e.button!==0)return;
+  clearTimeout(holdTimer);holdTriggered=false;
+  startX=e.clientX;startY=e.clientY;
+  const id=el.dataset.txId;
+  holdTimer=setTimeout(()=>{holdTriggered=true;showTransactionMenu(id)},3000);
+ });
+ el.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-startX,e.clientY-startY)>12)clearTimeout(holdTimer)});
+ ['pointerup','pointerleave','pointercancel'].forEach(evt=>el.addEventListener(evt,()=>clearTimeout(holdTimer)));
+ el.addEventListener('contextmenu',e=>e.preventDefault());
+ el.addEventListener('selectstart',e=>e.preventDefault());
+})}
 function openNewPayment(){showView('newpayment')}
 function startPayment(type){showView('payments');openPaymentForm(type)}
 let payidMode='mobile';
