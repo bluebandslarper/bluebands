@@ -189,6 +189,9 @@ button:active:not(:disabled){opacity:.92}
  .view.active.wallet-enter-up,.view.active.wallet-enter-left,.view.active.wallet-enter-right { animation:none !important; }
 }
 
+
+/* Two overview cards restored. */
+.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 </style>
 </head>
 <body>
@@ -320,7 +323,7 @@ button:active:not(:disabled){opacity:.92}
         <div class="form-actions"><button class="secondary" onclick="resetApp()">Reset all local data</button></div>
       </div>
     </section>
-<section class="view" id="transactiondetail"><div class="tx-detail-page"><div class="tx-detail-head"><button class="tx-detail-icon" onclick="showView(lastTxView)">‹</button></div><div class="tx-detail-amount" id="detailAmount"></div><div class="tx-detail-name" id="detailName"></div><div class="tx-detail-date" id="detailDate"></div><div class="tx-category" id="detailCategory"></div><button class="tx-tags" onclick="editTransaction(activeTxId)">＋ Add Tag</button><div class="tx-detail-location" id="detailLocation"></div><div class="tx-details-card"><div class="tx-muted">Card Used</div><div class="tx-value" id="detailCard">Card</div><br><div class="tx-muted">From</div><div class="tx-value" id="detailFrom">Everyday</div><br><div class="tx-muted">Transaction details</div><div class="tx-value" id="detailMemo"></div></div><div class="tx-detail-demo">Simulated transaction · No real payment</div></div></section>
+<section class="view" id="transactiondetail"><div class="tx-detail-page"><div class="tx-detail-head"><button class="tx-detail-icon" onclick="showView(lastTxView)">‹</button></div><div class="tx-detail-amount" id="detailAmount"></div><div class="tx-detail-name" id="detailName"></div><div class="tx-detail-date" id="detailDate"></div><div class="tx-category" id="detailCategory"></div><button class="tx-tags" onclick="editTransaction(activeTxId)">＋ Add Tag</button><div class="tx-detail-location" id="detailLocation"></div><div class="tx-details-card"><div class="tx-muted">From</div><div class="tx-value" id="detailCard"></div><br><div class="tx-muted">Acc:</div><div class="tx-value" id="detailFrom">830 487 374</div><br><div class="tx-muted">Card used</div><div class="tx-value" id="detailCardUsed">**** 0031</div><br><div class="tx-muted">Transaction details</div><div class="tx-value" id="detailMemo"></div></div><div class="tx-detail-demo">Simulated transaction · No real payment</div></div></section>
   </main>
 </div>
 <div id="txEditorRoot"></div><div class="toast" id="toast" role="status"></div><div id="txMenuRoot"></div>
@@ -405,7 +408,7 @@ function showTransactionMenu(id){const tx=data.transactions.find(t=>String(t.id)
 function closeTxMenu(event){if(event&&event.target!==event.currentTarget)return;document.getElementById('txMenuRoot').innerHTML=''}
 let activeTxId=null,lastTxView='transactions';
 function transactionTap(event,id){if(holdTriggered){holdTriggered=false;return}if(event.target.closest('button'))return;openTransactionDetail(id)}
-function openTransactionDetail(id){const tx=data.transactions.find(t=>String(t.id)===String(id));if(!tx)return;activeTxId=id;const active=document.querySelector('.view.active');if(active&&active.id!=='transactiondetail')lastTxView=active.id;const set=(key,value)=>document.getElementById(key).textContent=value;set('detailAmount',money(Math.abs(tx.amount)));set('detailName',tx.title);set('detailDate',new Date(tx.date).toLocaleString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Australia/Melbourne'})+' AEDT');set('detailCategory',tx.category||'Other');set('detailLocation',tx.location||'');set('detailCard',tx.card||'Card');set('detailFrom',data.name+' Everyday');set('detailMemo',tx.detail||'Wallet transaction');const tagBtn=document.querySelector('#transactiondetail .tx-tags');tagBtn.textContent=tx.tag||'＋ Add Tag';showView('transactiondetail')}
+function openTransactionDetail(id){const tx=data.transactions.find(t=>String(t.id)===String(id));if(!tx)return;activeTxId=id;const active=document.querySelector('.view.active');if(active&&active.id!=='transactiondetail')lastTxView=active.id;const set=(key,value)=>document.getElementById(key).textContent=value;set('detailAmount',money(Math.abs(tx.amount)));set('detailName',tx.title);set('detailDate',new Date(tx.date).toLocaleString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Australia/Melbourne'})+' AEDT');set('detailCategory',tx.category||'Other');set('detailLocation',tx.location||'');set('detailCard',data.name||'Wallet');set('detailFrom','830 487 374');set('detailCardUsed','**** 0031');set('detailMemo',tx.detail||'Wallet transaction');const tagBtn=document.querySelector('#transactiondetail .tx-tags');tagBtn.textContent=tx.tag||'＋ Add Tag';showView('transactiondetail')}
 function localDateTime(date){const d=new Date(date);if(!Number.isFinite(d.getTime()))return '';const pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
 function setTransactionNow(){const v=localDateTime(new Date());document.getElementById('txEditDay').value=v.slice(0,10);document.getElementById('txEditClock').value=v.slice(11,16)}
 function editTransaction(id){const tx=data.transactions.find(t=>String(t.id)===String(id));if(!tx)return;closeTxMenu();const v=localDateTime(tx.date)||localDateTime(new Date());const root=document.getElementById('txEditorRoot');root.innerHTML=`<div class="tx-editor-backdrop" onclick="if(event.target===this)closeTransactionEditor()"><form class="tx-editor" id="txEditForm"><h2>Edit transaction</h2><label for="txEditName">Transaction name</label><input id="txEditName" required maxlength="90" value="${escapeHTML(tx.title)}"><div class="two"><div><label for="txEditAmount">Amount (negative = outgoing)</label><input id="txEditAmount" type="number" step="0.01" required value="${tx.amount}"></div><div><label for="txEditCategory">Category</label><select id="txEditCategory">${['Groceries','Shopping','Food & Drink','Transport','Bills','Entertainment','Transfers','Income','Other'].map(c=>`<option ${c===(tx.category||'Other')?'selected':''}>${c}</option>`).join('')}</select></div></div><label>Date and time</label><div class="two"><div><input aria-label="Transaction date" id="txEditDay" type="date" required value="${v.slice(0,10)}"></div><div><input aria-label="Transaction time" id="txEditClock" type="time" required value="${v.slice(11,16)}"></div></div><button class="now" type="button" onclick="setTransactionNow()">↻ Set to now</button><label for="txEditLocation">Purchase location</label><input id="txEditLocation" maxlength="120" placeholder="e.g. Highton, VIC" value="${escapeHTML(tx.location||'')}"><label for="txEditTag">Tag</label><input id="txEditTag" maxlength="45" placeholder="e.g. Weekly shop" value="${escapeHTML(tx.tag||'')}"><label for="txEditCard">Card used</label><input id="txEditCard" maxlength="65" value="${escapeHTML(tx.card||'Card')}"><label for="txEditDetail">Details</label><input id="txEditDetail" maxlength="160" value="${escapeHTML(tx.detail||'')}"><p class="tx-edit-error" id="txEditError" role="alert"></p><div class="actions"><button type="button" onclick="closeTransactionEditor()">Cancel</button><button type="button" id="txSaveButton">Save changes</button></div></form></div>`;document.getElementById('txSaveButton').addEventListener('click',()=>saveTransactionEdit(null,id));document.getElementById('txEditForm').addEventListener('submit',e=>saveTransactionEdit(e,id));}
@@ -432,8 +435,10 @@ function saveTransactionEdit(e,id){
   persist();
   render();
   closeTransactionEditor();
-  showView('transactions');
-  showToast('Transaction saved and updated in your history.');
+  if(document.getElementById('transactiondetail').classList.contains('active')){
+    openTransactionDetail(id);
+  }
+  showToast('Transaction saved.');
  }catch(err){
   data=before;
   if(error)error.textContent='Unable to save: '+(err?.message||'Please try again.');
